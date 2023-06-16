@@ -1,0 +1,71 @@
+import boto3
+
+def filter_load_balancers_by_partial_name(partial_name):
+  # Create an ELBv2 client
+  elbv2_client = boto3.client('elbv2')
+
+  # Describe the load balancers
+  response = elbv2_client.describe_load_balancers()
+
+  # Extract the load balancer details
+  load_balancers = response['LoadBalancers']
+
+  # Filter load balancers by partial name match
+  filtered_load_balancers = [
+    lb for lb in load_balancers if partial_name.lower() in lb['LoadBalancerName'].lower()
+  ]
+
+  return filtered_load_balancers
+
+def get_load_balancer_subnets(load_balancer_arn):
+  # Create an ELBv2 client
+  elbv2_client = boto3.client('elbv2')
+
+  # Describe the load balancer
+  response = elbv2_client.describe_load_balancers(LoadBalancerArns=[load_balancer_arn])
+
+  # Extract the subnet IDs from the load balancer details
+  load_balancer = response['LoadBalancers'][0]
+  subnet_mappings = load_balancer['AvailabilityZones']
+
+  subnet_ids = []
+  for mapping in subnet_mappings:
+    subnet_ids.append(mapping['SubnetId'])
+
+  return subnet_ids
+
+def get_subnet_ip_count(subnet_id):
+  # Create an EC2 client
+  ec2_client = boto3.client('ec2')
+
+  # Describe the subnet
+  response = ec2_client.describe_subnets(SubnetIds=[subnet_id])
+
+  # Extract the IP count from the subnet details
+  subnet = response['Subnets'][0]
+  available_ip_count = subnet['AvailableIpAddressCount']
+
+  return available_ip_count
+
+partial_name = 'test'
+
+filtered_load_balancers = filter_load_balancers_by_partial_name(partial_name)
+
+load_balancer_subnets = {}
+for lb in filtered_load_balancers:
+  load_balancer_arn = lb['LoadBalancerArn']
+  subnets = get_load_balancer_subnets(load_balancer_arn)
+  load_balancer_subnets[lb['LoadBalancerName']] = subnets
+
+print("Load Balancers and associated Subnets:")
+for lb_name, subnets in load_balancer_subnets.items():
+  print(f"Load Balancer: {lb_name}")
+  for subnet_id in subnets:
+    ip_count = get_subnet_ip_count(subnet_id)
+    print(f"Subnet: {subnet_id}")
+    print(f"Available IP Count: {ip_count}")
+    if ip_count < 8:
+      print("Available IP count is less than 8.")
+    else:
+      print("Available IPs greater than or equal to 8")
+    print()
